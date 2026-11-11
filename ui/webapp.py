@@ -181,6 +181,9 @@ class ChatService:
             self._lock.release()
 
     def set_model(self, model: str) -> str:
+        model = str(model or "").strip()
+        if model not in MODEL_CHOICES:
+            raise ValueError(f"不支持的模型：{model}。可选模型：{', '.join(MODEL_CHOICES)}")
         self.model = model
         if self.agent is not None:
             self.agent.model = model
@@ -361,7 +364,11 @@ class _Handler(BaseHTTPRequestHandler):
             if not model:
                 self._json({"ok": False, "error": "模型名为空"}, 400)
                 return
-            self.service.set_model(model)
+            try:
+                self.service.set_model(model)
+            except ValueError as exc:
+                self._json({"ok": False, "error": str(exc)}, 400)
+                return
             self._json({"ok": True, "state": self.service.snapshot()})
         elif path == "/api/newchat":
             self.service.new_chat()

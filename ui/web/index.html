@@ -131,6 +131,8 @@
     padding:4px 8px;border-radius:8px;
   }
   .copy:hover{background:#f1f5f9;color:#0f172a}
+  .retry-answer{margin-top:12px;padding:7px 12px;border:1px solid #fecaca;border-radius:9px;background:#fff;color:#b91c1c;font:inherit;font-size:12px;cursor:pointer}
+  .retry-answer:hover{background:#fff1f2}
 
   .thinking{display:flex;align-items:center;gap:12px;color:#475569;font-size:13px}
   .dots{display:inline-flex;gap:5px}
@@ -174,6 +176,8 @@
   }
   .overlay.hidden{display:none}
   .overlay .box{text-align:center;color:#475569;font-size:13.5px;line-height:1.7}
+  .overlay .retry-load{margin-top:14px;padding:8px 14px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;color:#334155;font:inherit;cursor:pointer}
+  .overlay .retry-load[hidden]{display:none}
   .spinner{
     width:34px;height:34px;margin:0 auto 14px;border-radius:50%;
     border:3px solid #dbeafe;border-top-color:#0ea5e9;animation:spin 1s linear infinite;
@@ -206,6 +210,22 @@
   ::-webkit-scrollbar-thumb{background:#d7e0eb;border-radius:6px;border:2px solid transparent;background-clip:content-box}
   ::-webkit-scrollbar-thumb:hover{background:#c2cedd;background-clip:content-box}
   ::-webkit-scrollbar-track{background:transparent}
+  :focus-visible{outline:3px solid #38bdf8;outline-offset:2px}
+  @media (max-width:760px){
+    .sidebar{width:240px;flex-basis:240px;padding:14px 12px 10px}
+    .topbar{padding:0 14px}.chat{padding:18px 14px 8px}.composer{padding:10px 14px 14px}
+    .card-answer{padding:16px}.bubble-user{max-width:92%}.topbar .right{gap:8px}.topbar select{width:132px}
+  }
+  @media (max-width:560px){
+    .app{height:100dvh}.sidebar{width:190px;flex-basis:190px;padding:12px 9px 9px;gap:8px}
+    .sidebar-scroll{gap:9px}.brand{gap:8px}.logo{width:36px;height:36px;flex-basis:36px;border-radius:11px}.logo svg{width:22px;height:22px}
+    .brand h1{font-size:15px}.brand p{font-size:10px}.card{padding:10px}.kv{grid-template-columns:48px 1fr;font-size:11px;gap:6px}
+    .chip{font-size:11px;padding:8px}.sidebar-footer{flex-direction:column}.ghost{flex:none}
+    .topbar{flex-basis:52px;padding:0 10px}.topbar .title{font-size:13px}.pill{font-size:11px;gap:5px}.topbar select{width:112px;font-size:11px}
+    .chat{padding:14px 9px 6px}.composer{padding:8px 9px 10px}.composer-hint{font-size:10px;gap:8px}.composer-inner{padding-left:11px}
+    .send{min-width:64px}.md{font-size:13px}.md table{display:block;overflow-x:auto;white-space:nowrap}
+  }
+  @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}}
 </style>
 </head>
 <body>
@@ -260,7 +280,7 @@
     <header class="topbar">
       <div class="title">分析对话</div>
       <div class="right">
-        <div class="pill"><span class="dot" id="statusDot"></span><span id="statusText">就绪</span></div>
+        <div class="pill" role="status" aria-live="polite"><span class="dot" id="statusDot" aria-hidden="true"></span><span id="statusText">就绪</span></div>
         <select id="modelSelect" title="模型"></select>
       </div>
     </header>
@@ -296,6 +316,7 @@
   <div class="box">
     <div class="spinner"></div>
     <div id="overlayText">正在加载数据…</div>
+    <button class="retry-load" id="retryLoad" type="button" hidden>重新尝试</button>
   </div>
 </div>
 
@@ -312,6 +333,8 @@
 
   let state = null;
   let busy = false;
+  let lastQuestion = "";
+  let bootTimer = null;
 
   /* ------------------------------------------------ 工具函数 */
   function esc(s) {
@@ -528,7 +551,7 @@
     scrollToBottom();
   }
 
-  function addError(message) {
+  function addError(message, retryQuestion = "") {
     ensureEmptyGone();
     const card = document.createElement("div");
     card.className = "card-answer error";
@@ -539,7 +562,10 @@
         '<div class="when">' + nowTime() + "</div>" +
       "</div>" +
       '<div class="err-body">' + esc(message) +
-        "<small>常见原因：API Key 无效或额度不足、网络不通、模型名不存在。可在上方切换模型后重试。</small></div>";
+        "<small>常见原因：API Key 无效或额度不足、网络不通、模型名不存在。请检查设置后重试。</small></div>" +
+      (retryQuestion ? '<button class="retry-answer" type="button">重试此问题</button>' : "");
+    const retry = card.querySelector(".retry-answer");
+    if (retry) retry.addEventListener("click", () => ask(retryQuestion));
     chatInner.appendChild(card);
     scrollToBottom();
   }
@@ -608,24 +634,30 @@
   }
 
   async function boot() {
+    if (bootTimer) clearInterval(bootTimer);
     showOverlay("正在加载数据…");
-    const tick = setInterval(async () => {
+    $("retryLoad").hidden = true;
+    bootTimer = setInterval(async () => {
       try {
         const s = await fetchState();
         overlayText.textContent = s.status || "正在准备…";
         if (s.ready) {
-          clearInterval(tick);
+          clearInterval(bootTimer);
+          bootTimer = null;
           hideOverlay();
           applyState(s);
           setStatus("就绪");
           input.focus();
         } else if (s.error) {
-          clearInterval(tick);
+          clearInterval(bootTimer);
+          bootTimer = null;
           overlayText.textContent = "加载失败：" + s.error;
+          $("retryLoad").hidden = false;
           setStatus("加载失败", "error");
         }
       } catch (e) {
         overlayText.textContent = "无法连接本地服务…";
+        $("retryLoad").hidden = false;
       }
     }, 1200);
   }
@@ -637,6 +669,7 @@
     if (!text) return;
 
     busy = true;
+    lastQuestion = text;
     sendBtn.disabled = true;
     setStatus("正在分析", "busy");
     input.value = "";
@@ -693,7 +726,7 @@
         addAnswer(answer, meta);
         setStatus("就绪");
       } else {
-        addError(errorMessage || "没有得到回答，请稍后重试。");
+        addError(errorMessage || "没有得到回答，请稍后重试。", lastQuestion);
         setStatus("出错", "error");
       }
       busy = false;
@@ -716,19 +749,24 @@
     }
   });
   sendBtn.addEventListener("click", () => ask());
+  $("retryLoad").addEventListener("click", boot);
 
   $("modelSelect").addEventListener("change", async (e) => {
     const model = e.target.value;
     try {
-      await fetch("/api/model", {
+      const res = await fetch("/api/model", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model }),
       });
+      const result = await res.json();
+      if (!res.ok || !result.ok) throw new Error(result.error || "模型切换失败");
+      if (state) state.model = model;
       setStatus("模型已切换：" + model);
       setTimeout(() => setStatus("就绪"), 1800);
     } catch (err) {
-      setStatus("切换失败", "error");
+      setStatus(err.message || "切换失败", "error");
+      if (state) $("modelSelect").value = state.model;
     }
   });
 
