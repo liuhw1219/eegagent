@@ -634,6 +634,12 @@
   }
 
   async function boot() {
+    if (location.protocol === "file:") {
+      showOverlay("这是界面文件预览，尚未连接 EEGAgent 服务。请在项目目录运行 python main.py 启动应用；仅预览界面可运行 python main.py --ui-demo。");
+      $("retryLoad").hidden = true;
+      setStatus("尚未启动服务", "error");
+      return;
+    }
     if (bootTimer) clearInterval(bootTimer);
     showOverlay("正在加载数据…");
     $("retryLoad").hidden = true;
