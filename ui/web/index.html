@@ -1,0 +1,848 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>EEGAgent</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    color:#0f172a;
+    font-family:"Segoe UI","Microsoft YaHei","PingFang SC",system-ui,-apple-system,sans-serif;
+    font-size:14px;
+    background:radial-gradient(1200px 620px at 15% -12%, #eaf6fb 0%, #f4f7fb 42%, #eff3f9 100%);
+  }
+  .app{display:flex;height:100vh;overflow:hidden}
+
+  /* ------------------------------- 侧栏 */
+  .sidebar{
+    width:292px;flex:0 0 292px;display:flex;flex-direction:column;gap:12px;
+    padding:18px 16px 14px;background:#fff;border-right:1px solid #e6ebf2;overflow:hidden;
+  }
+  .sidebar-scroll{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:14px;padding-right:2px}
+  .brand{display:flex;align-items:center;gap:12px;padding:2px 4px 6px}
+  .logo{
+    width:44px;height:44px;border-radius:14px;flex:0 0 44px;
+    background:linear-gradient(135deg,#0ea5e9,#0d9488);
+    display:grid;place-items:center;box-shadow:0 8px 20px rgba(13,148,136,.24);
+  }
+  .logo svg{width:26px;height:26px}
+  .brand h1{margin:0;font-size:17px;letter-spacing:.2px}
+  .brand p{margin:2px 0 0;font-size:12px;color:#64748b}
+
+  .card{background:#f8fafd;border:1px solid #e8edf5;border-radius:14px;padding:12px 14px}
+  .card h2{margin:0 0 10px;font-size:11.5px;font-weight:600;letter-spacing:.6px;color:#64748b}
+
+  .kv{display:grid;grid-template-columns:62px 1fr;gap:7px 10px;font-size:12.5px;margin:0}
+  .kv dt{color:#64748b}
+  .kv dd{
+    margin:0;color:#0f172a;overflow:hidden;text-overflow:ellipsis;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.45;
+  }
+
+  .field{margin-top:10px}
+  .field:first-of-type{margin-top:12px}
+  .field label{display:block;font-size:11.5px;color:#64748b;margin-bottom:5px}
+  select{
+    width:100%;height:34px;border:1px solid #dbe3ee;border-radius:10px;background:#fff;
+    padding:0 10px;font:inherit;font-size:12.5px;color:#0f172a;cursor:pointer;
+  }
+  select:focus{outline:none;border-color:#7dd3fc;box-shadow:0 0 0 3px #e0f2fe}
+
+  .chips{display:flex;flex-direction:column;gap:8px}
+  .chip{
+    text-align:left;background:#fff;border:1px solid #e5eaf2;border-radius:10px;
+    padding:9px 11px;font:inherit;font-size:12.5px;line-height:1.45;color:#334155;cursor:pointer;
+    transition:border-color .15s, background .15s, transform .15s;
+  }
+  .chip:hover{border-color:#7dd3fc;background:#f0f9ff;transform:translateX(2px)}
+
+  .sidebar-footer{margin-top:auto;display:flex;gap:8px;padding-top:6px}
+  .ghost{
+    flex:1;height:34px;border-radius:10px;border:1px solid #dbe3ee;background:#fff;
+    font:inherit;font-size:12.5px;color:#334155;cursor:pointer;transition:.15s;
+  }
+  .ghost:hover{border-color:#7dd3fc;background:#f8fbff}
+  .ghost.danger:hover{border-color:#fca5a5;background:#fff5f5;color:#b91c1c}
+
+  /* ------------------------------- 主区 */
+  .main{flex:1;display:flex;flex-direction:column;min-width:0}
+  .topbar{
+    flex:0 0 56px;display:flex;align-items:center;justify-content:space-between;
+    padding:0 24px;border-bottom:1px solid #e6ebf2;background:rgba(255,255,255,.72);
+    backdrop-filter:blur(10px);
+  }
+  .topbar .title{font-weight:600;letter-spacing:.3px}
+  .topbar .right{display:flex;align-items:center;gap:14px}
+  .pill{display:flex;align-items:center;gap:8px;font-size:12.5px;color:#475569}
+  .dot{width:8px;height:8px;border-radius:50%;background:#10b981;flex:0 0 8px}
+  .dot.busy{background:#f59e0b;animation:pulse 1.2s infinite}
+  .dot.error{background:#ef4444}
+  @keyframes pulse{
+    0%{box-shadow:0 0 0 0 rgba(245,158,11,.45)}
+    70%{box-shadow:0 0 0 8px rgba(245,158,11,0)}
+    100%{box-shadow:0 0 0 0 rgba(245,158,11,0)}
+  }
+  .topbar select{width:158px}
+
+  .chat{flex:1;overflow-y:auto;padding:26px 24px 8px}
+  .chat-inner{max-width:880px;margin:0 auto;display:flex;flex-direction:column;gap:18px;padding-bottom:10px}
+
+  .empty{margin:auto;text-align:center;padding:12vh 20px 0;color:#64748b}
+  .empty .glyph{
+    width:62px;height:62px;margin:0 auto 16px;border-radius:20px;display:grid;place-items:center;
+    background:#fff;border:1px solid #e6ebf2;box-shadow:0 12px 30px rgba(15,23,42,.06);
+  }
+  .empty .glyph svg{width:32px;height:32px}
+  .empty h2{margin:0 0 8px;font-size:18px;color:#0f172a;font-weight:600}
+  .empty p{margin:0;font-size:13px;line-height:1.7}
+
+  .msg{display:flex;flex-direction:column;animation:rise .28s ease-out}
+  @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .msg.user{align-items:flex-end}
+  .bubble-user{
+    max-width:78%;padding:11px 15px;line-height:1.6;white-space:pre-wrap;word-break:break-word;
+    background:linear-gradient(135deg,#e0f2fe,#dcfce7);border:1px solid #bae6fd;
+    border-radius:16px 16px 4px 16px;
+  }
+
+  .card-answer{
+    width:100%;background:#fff;border:1px solid #e6ebf2;border-radius:16px;
+    padding:20px 22px 14px;box-shadow:0 12px 34px rgba(15,23,42,.06);
+  }
+  .card-answer .head{display:flex;align-items:center;gap:9px;margin-bottom:12px}
+  .card-answer .head .avatar{
+    width:26px;height:26px;border-radius:9px;background:linear-gradient(135deg,#0ea5e9,#0d9488);
+    display:grid;place-items:center;flex:0 0 26px;
+  }
+  .card-answer .head .avatar svg{width:15px;height:15px}
+  .card-answer .head .who{font-size:12.5px;font-weight:600;color:#0f172a}
+  .card-answer .head .when{margin-left:auto;font-size:11.5px;color:#94a3b8}
+
+  .meta{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    margin-top:14px;padding-top:10px;border-top:1px dashed #eef2f7;
+    font-size:11.5px;color:#94a3b8;
+  }
+  .copy{
+    border:0;background:transparent;color:#64748b;font:inherit;font-size:11.5px;cursor:pointer;
+    padding:4px 8px;border-radius:8px;
+  }
+  .copy:hover{background:#f1f5f9;color:#0f172a}
+
+  .thinking{display:flex;align-items:center;gap:12px;color:#475569;font-size:13px}
+  .dots{display:inline-flex;gap:5px}
+  .dots i{width:6px;height:6px;border-radius:50%;background:#0ea5e9;opacity:.35;animation:blink 1.2s infinite}
+  .dots i:nth-child(2){animation-delay:.18s}
+  .dots i:nth-child(3){animation-delay:.36s}
+  @keyframes blink{0%,100%{opacity:.25;transform:scale(.92)}50%{opacity:1;transform:scale(1.08)}}
+  .thinking .time{margin-left:auto;font-variant-numeric:tabular-nums;color:#94a3b8;font-size:11.5px}
+
+  .card-answer.error{border-color:#fecaca;background:#fff8f8}
+  .card-answer.error .head .who{color:#b91c1c}
+  .err-body{color:#7f1d1d;font-size:13px;line-height:1.7}
+  .err-body small{display:block;margin-top:6px;color:#9a3412;font-size:12px}
+
+  /* ------------------------------- 输入区 */
+  .composer{flex:0 0 auto;padding:12px 24px 22px;background:linear-gradient(180deg,rgba(244,247,251,0),#f4f7fb 32%)}
+  .composer-inner{
+    max-width:880px;margin:0 auto;display:flex;gap:10px;align-items:flex-end;
+    background:#fff;border:1px solid #dbe3ee;border-radius:16px;padding:10px 10px 10px 16px;
+    box-shadow:0 14px 36px rgba(15,23,42,.07);transition:border-color .15s, box-shadow .15s;
+  }
+  .composer-inner:focus-within{border-color:#7dd3fc;box-shadow:0 0 0 4px #e0f2fe,0 14px 36px rgba(15,23,42,.07)}
+  textarea{
+    flex:1;border:0;outline:none;resize:none;background:transparent;padding:5px 0;
+    font:inherit;font-size:14px;line-height:1.55;max-height:170px;min-height:26px;color:#0f172a;
+  }
+  textarea::placeholder{color:#a3b0c2}
+  .send{
+    flex:0 0 auto;height:38px;min-width:84px;border:0;border-radius:12px;cursor:pointer;
+    background:linear-gradient(135deg,#0284c7,#0d9488);color:#fff;font:inherit;font-size:13px;font-weight:600;
+    box-shadow:0 8px 18px rgba(13,148,136,.24);transition:transform .12s, opacity .15s;
+  }
+  .send:hover{transform:translateY(-1px)}
+  .send:disabled{opacity:.55;cursor:not-allowed;transform:none;box-shadow:none}
+  .composer-hint{max-width:880px;margin:8px auto 0;font-size:11.5px;color:#94a3b8;display:flex;justify-content:space-between}
+
+  /* ------------------------------- 覆盖层 */
+  .overlay{
+    position:fixed;inset:0;z-index:60;display:grid;place-items:center;
+    background:rgba(244,247,251,.82);backdrop-filter:blur(7px);
+  }
+  .overlay.hidden{display:none}
+  .overlay .box{text-align:center;color:#475569;font-size:13.5px;line-height:1.7}
+  .spinner{
+    width:34px;height:34px;margin:0 auto 14px;border-radius:50%;
+    border:3px solid #dbeafe;border-top-color:#0ea5e9;animation:spin 1s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* ------------------------------- Markdown */
+  .md{line-height:1.78;font-size:13.6px;word-break:break-word}
+  .md h1,.md h2,.md h3,.md h4,.md h5{margin:16px 0 7px;line-height:1.4;color:#0f172a}
+  .md h1{font-size:18px}.md h2{font-size:16px}.md h3{font-size:15px}.md h4{font-size:14px}
+  .md p{margin:8px 0}
+  .md ul,.md ol{margin:8px 0;padding-left:22px}
+  .md li{margin:4px 0}
+  .md strong{color:#0b1220}
+  .md code{
+    background:#f1f5f9;border-radius:6px;padding:1.5px 5px;
+    font-family:Consolas,"SFMono-Regular",monospace;font-size:12.5px;
+  }
+  .md pre{background:#f8fafc;border:1px solid #e6ebf2;border-radius:10px;padding:12px;overflow:auto}
+  .md pre code{background:transparent;padding:0}
+  .md table{border-collapse:collapse;margin:12px 0;width:100%;font-size:13px}
+  .md th,.md td{border:1px solid #e2e8f0;padding:7px 10px;text-align:left;vertical-align:top}
+  .md th{background:#f8fafc;font-weight:600}
+  .md blockquote{
+    margin:10px 0;padding:6px 12px;border-left:3px solid #7dd3fc;
+    background:#f0f9ff;border-radius:0 8px 8px 0;color:#334155;
+  }
+
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:#d7e0eb;border-radius:6px;border:2px solid transparent;background-clip:content-box}
+  ::-webkit-scrollbar-thumb:hover{background:#c2cedd;background-clip:content-box}
+  ::-webkit-scrollbar-track{background:transparent}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.7" stroke-linejoin="round">
+          <path d="M2 13h3l2.2-6 3.6 11 3.2-8 2.4 3h6.6" />
+        </svg>
+      </div>
+      <div>
+        <h1>EEGAgent</h1>
+        <p>大模型驱动的脑电分析</p>
+      </div>
+    </div>
+
+    <div class="sidebar-scroll">
+    <section class="card">
+      <h2>当前数据</h2>
+      <dl class="kv" id="info">
+        <dt>文件</dt><dd id="infoFile">加载中…</dd>
+        <dt>采样率</dt><dd id="infoFs">—</dd>
+        <dt>时长</dt><dd id="infoDuration">—</dd>
+        <dt>导联</dt><dd id="infoChannels">—</dd>
+        <dt>受试者</dt><dd id="infoSubject">—</dd>
+        <dt>知识库</dt><dd id="infoKnowledge">—</dd>
+      </dl>
+      <div class="field">
+        <label for="fileSelect">数据文件</label>
+        <select id="fileSelect"></select>
+      </div>
+      <div class="field">
+        <label for="loaderSelect">读取方式</label>
+        <select id="loaderSelect"></select>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>快捷提问</h2>
+      <div class="chips" id="examples"></div>
+    </section>
+    </div>
+
+    <div class="sidebar-footer">
+      <button class="ghost" id="newChat">新对话</button>
+      <button class="ghost danger" id="quit">退出</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="title">分析对话</div>
+      <div class="right">
+        <div class="pill"><span class="dot" id="statusDot"></span><span id="statusText">就绪</span></div>
+        <select id="modelSelect" title="模型"></select>
+      </div>
+    </header>
+
+    <div class="chat" id="chat">
+      <div class="chat-inner" id="chatInner">
+        <div class="empty" id="emptyState">
+          <div class="glyph">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#0d9488" stroke-width="1.7" stroke-linejoin="round">
+              <path d="M2 13h3l2.2-6 3.6 11 3.2-8 2.4 3h6.6" />
+            </svg>
+          </div>
+          <h2>输入一个脑电问题开始分析</h2>
+          <p>比如：第 5 到第 10 分钟有没有明显的慢波？<br />结论会直接显示在这里，分析过程不打扰你。</p>
+        </div>
+      </div>
+    </div>
+
+    <footer class="composer">
+      <div class="composer-inner">
+        <textarea id="input" rows="1" placeholder="输入问题，Enter 发送，Shift + Enter 换行"></textarea>
+        <button class="send" id="send">发送</button>
+      </div>
+      <div class="composer-hint">
+        <span>结论直接给出，工具与推理过程不展示</span>
+        <span id="hintFile">—</span>
+      </div>
+    </footer>
+  </main>
+</div>
+
+<div class="overlay hidden" id="overlay">
+  <div class="box">
+    <div class="spinner"></div>
+    <div id="overlayText">正在加载数据…</div>
+  </div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  const $ = (id) => document.getElementById(id);
+  const chatInner = $("chatInner");
+  const input = $("input");
+  const sendBtn = $("send");
+  const overlay = $("overlay");
+  const overlayText = $("overlayText");
+
+  let state = null;
+  let busy = false;
+
+  /* ------------------------------------------------ 工具函数 */
+  function esc(s) {
+    return String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function inline(s) {
+    let t = esc(s);
+    t = t.replace(/`([^`]+)`/g, "<code>$1</code>");
+    t = t.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+    t = t.replace(/(^|[^*])\*([^*]+)\*/g, "$1<em>$2</em>");
+    return t;
+  }
+
+  function splitRow(line) {
+    return line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim());
+  }
+
+  function renderMarkdown(src) {
+    if (!src) return "";
+    const lines = String(src).replace(/\r\n/g, "\n").split("\n");
+    const out = [];
+    const tableSep = /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)+\|?\s*$/;
+    let i = 0;
+
+    while (i < lines.length) {
+      const line = lines[i];
+      if (/^\s*$/.test(line)) { i++; continue; }
+
+      if (/^\s*```/.test(line)) {
+        i++;
+        const code = [];
+        while (i < lines.length && !/^\s*```/.test(lines[i])) { code.push(lines[i]); i++; }
+        i++;
+        out.push("<pre><code>" + esc(code.join("\n")) + "</code></pre>");
+        continue;
+      }
+
+      const head = line.match(/^\s*(#{1,6})\s+(.*)$/);
+      if (head) {
+        const level = Math.min(3, head[1].length) + 2;   // h1 -> h3，避免答案里字号过大
+        out.push("<h" + level + ">" + inline(head[2]) + "</h" + level + ">");
+        i++;
+        continue;
+      }
+
+      if (/^\s*\|/.test(line) && i + 1 < lines.length && tableSep.test(lines[i + 1])) {
+        const header = splitRow(lines[i]);
+        const align = splitRow(lines[i + 1]).map((c) =>
+          c.startsWith(":") && c.endsWith(":") ? "center" : c.endsWith(":") ? "right" : "left"
+        );
+        i += 2;
+        const rows = [];
+        while (i < lines.length && /^\s*\|/.test(lines[i])) { rows.push(splitRow(lines[i])); i++; }
+        let html = "<table><thead><tr>";
+        header.forEach((c, idx) => {
+          html += '<th style="text-align:' + (align[idx] || "left") + '">' + inline(c) + "</th>";
+        });
+        html += "</tr></thead><tbody>";
+        rows.forEach((r) => {
+          html += "<tr>";
+          r.forEach((c, idx) => {
+            html += '<td style="text-align:' + (align[idx] || "left") + '">' + inline(c) + "</td>";
+          });
+          html += "</tr>";
+        });
+        html += "</tbody></table>";
+        out.push(html);
+        continue;
+      }
+
+      if (/^\s*([-*_])\s+/.test(line) || /^\s*\d+[.)]\s+/.test(line)) {
+        const ordered = /^\s*\d+[.)]\s+/.test(line);
+        const items = [];
+        while (
+          i < lines.length &&
+          (/^\s*([-*_])\s+/.test(lines[i]) || /^\s*\d+[.)]\s+/.test(lines[i]))
+        ) {
+          items.push(lines[i].replace(/^\s*([-*_]|\d+[.)])\s+/, "").trim());
+          i++;
+        }
+        const tag = ordered ? "ol" : "ul";
+        out.push("<" + tag + ">" + items.map((t) => "<li>" + inline(t) + "</li>").join("") + "</" + tag + ">");
+        continue;
+      }
+
+      if (/^\s*>\s?/.test(line)) {
+        const quote = [];
+        while (i < lines.length && /^\s*>\s?/.test(lines[i])) {
+          quote.push(lines[i].replace(/^\s*>\s?/, ""));
+          i++;
+        }
+        out.push("<blockquote>" + inline(quote.join(" ")) + "</blockquote>");
+        continue;
+      }
+
+      const para = [];
+      while (
+        i < lines.length &&
+        !/^\s*$/.test(lines[i]) &&
+        !/^\s*(#{1,6}\s|```|\||>\s|[-*_]\s|\d+[.)]\s)/.test(lines[i])
+      ) {
+        para.push(lines[i]);
+        i++;
+      }
+      if (para.length) out.push("<p>" + para.map(inline).join("<br>") + "</p>");
+      else i++;
+    }
+    return out.join("");
+  }
+
+  function nowTime() {
+    const d = new Date();
+    return d.getHours().toString().padStart(2, "0") + ":" + d.getMinutes().toString().padStart(2, "0");
+  }
+
+  function setStatus(text, kind) {
+    $("statusText").textContent = text;
+    const dot = $("statusDot");
+    dot.className = "dot" + (kind ? " " + kind : "");
+  }
+
+  function showOverlay(text) {
+    overlayText.textContent = text;
+    overlay.classList.remove("hidden");
+  }
+  function hideOverlay() { overlay.classList.add("hidden"); }
+
+  function clearChat() {
+    chatInner.innerHTML = "";
+    const empty = document.createElement("div");
+    empty.className = "empty";
+    empty.id = "emptyState";
+    empty.innerHTML =
+      '<div class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke="#0d9488" stroke-width="1.7" stroke-linejoin="round"><path d="M2 13h3l2.2-6 3.6 11 3.2-8 2.4 3h6.6"/></svg></div>' +
+      "<h2>输入一个脑电问题开始分析</h2>" +
+      "<p>比如：第 5 到第 10 分钟有没有明显的慢波？<br />结论会直接显示在这里，分析过程不打扰你。</p>";
+    chatInner.appendChild(empty);
+  }
+
+  function ensureEmptyGone() {
+    const empty = $("emptyState");
+    if (empty) empty.remove();
+  }
+
+  function scrollToBottom() {
+    const chat = $("chat");
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  /* ------------------------------------------------ 消息渲染 */
+  function addUser(text) {
+    ensureEmptyGone();
+    const wrap = document.createElement("div");
+    wrap.className = "msg user";
+    const bubble = document.createElement("div");
+    bubble.className = "bubble-user";
+    bubble.textContent = text;
+    wrap.appendChild(bubble);
+    chatInner.appendChild(wrap);
+    scrollToBottom();
+  }
+
+  function addThinking() {
+    ensureEmptyGone();
+    const card = document.createElement("div");
+    card.className = "card-answer";
+    card.innerHTML =
+      '<div class="head">' +
+        '<div class="avatar"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.7" stroke-linejoin="round"><path d="M2 13h3l2.2-6 3.6 11 3.2-8 2.4 3h6.6"/></svg></div>' +
+        '<div class="who">EEGAgent</div>' +
+      "</div>" +
+      '<div class="thinking">' +
+        '<span class="dots"><i></i><i></i><i></i></span>' +
+        "<span>正在分析…</span>" +
+        '<span class="time">0s</span>' +
+      "</div>";
+    chatInner.appendChild(card);
+    scrollToBottom();
+    return card;
+  }
+
+  function addAnswer(content, meta) {
+    ensureEmptyGone();
+    let body;
+    try {
+      body = renderMarkdown(content);
+    } catch (e) {
+      body = "<p>" + esc(content) + "</p>";
+    }
+    const card = document.createElement("div");
+    card.className = "card-answer";
+    card.innerHTML =
+      '<div class="head">' +
+        '<div class="avatar"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.7" stroke-linejoin="round"><path d="M2 13h3l2.2-6 3.6 11 3.2-8 2.4 3h6.6"/></svg></div>' +
+        '<div class="who">EEGAgent</div>' +
+        '<div class="when">' + nowTime() + "</div>" +
+      "</div>" +
+      '<div class="md">' + body + "</div>" +
+      '<div class="meta"><span>' + esc(meta || "") + '</span><button class="copy">复制</button></div>';
+    card.querySelector(".copy").addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(content);
+        const btn = card.querySelector(".copy");
+        btn.textContent = "已复制";
+        setTimeout(() => (btn.textContent = "复制"), 1800);
+      } catch (e) { /* 忽略 */ }
+    });
+    chatInner.appendChild(card);
+    scrollToBottom();
+  }
+
+  function addError(message) {
+    ensureEmptyGone();
+    const card = document.createElement("div");
+    card.className = "card-answer error";
+    card.innerHTML =
+      '<div class="head">' +
+        '<div class="avatar" style="background:linear-gradient(135deg,#ef4444,#f97316)"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.7"><path d="M12 7v6M12 17h.01"/></svg></div>' +
+        '<div class="who">分析未完成</div>' +
+        '<div class="when">' + nowTime() + "</div>" +
+      "</div>" +
+      '<div class="err-body">' + esc(message) +
+        "<small>常见原因：API Key 无效或额度不足、网络不通、模型名不存在。可在上方切换模型后重试。</small></div>";
+    chatInner.appendChild(card);
+    scrollToBottom();
+  }
+
+  /* ------------------------------------------------ 状态同步 */
+  async function fetchState() {
+    const res = await fetch("/api/state");
+    return res.json();
+  }
+
+  function fillSelect(select, options, current) {
+    select.innerHTML = "";
+    options.forEach((op) => {
+      const o = document.createElement("option");
+      o.value = op.value;
+      o.textContent = op.label;
+      if (op.value === current) o.selected = true;
+      select.appendChild(o);
+    });
+  }
+
+  function applyState(s) {
+    state = s;
+    $("infoFile").textContent = s.info.file || "—";
+    $("infoFs").textContent = s.info.fs || "—";
+    $("infoDuration").textContent = s.info.duration || "—";
+    $("infoChannels").textContent = s.info.channels || "—";
+    $("infoSubject").textContent = s.info.subject || "—";
+    $("infoKnowledge").textContent = s.info.knowledge || "—";
+    $("infoFile").title = s.info.file || "";
+    $("infoChannels").title = s.info.channels || "";
+    $("hintFile").textContent = s.info.file || "—";
+
+    fillSelect(
+      $("fileSelect"),
+      s.files.map((f) => ({ value: f.path, label: f.name })),
+      s.current.path
+    );
+    fillSelect(
+      $("loaderSelect"),
+      s.loaderOptions.map((l) => ({ value: l.value, label: l.label })),
+      s.current.loader
+    );
+    fillSelect(
+      $("modelSelect"),
+      s.models.map((m) => ({ value: m, label: m })),
+      s.model
+    );
+
+    const examples = $("examples");
+    if (!examples.dataset.filled) {
+      s.examples.forEach(([question, capability]) => {
+        const b = document.createElement("button");
+        b.className = "chip";
+        b.textContent = question;
+        b.title = "会用到：" + capability;
+        b.addEventListener("click", () => {
+          input.value = question;
+          input.focus();
+          autoGrow();
+        });
+        examples.appendChild(b);
+      });
+      examples.dataset.filled = "1";
+    }
+  }
+
+  async function boot() {
+    showOverlay("正在加载数据…");
+    const tick = setInterval(async () => {
+      try {
+        const s = await fetchState();
+        overlayText.textContent = s.status || "正在准备…";
+        if (s.ready) {
+          clearInterval(tick);
+          hideOverlay();
+          applyState(s);
+          setStatus("就绪");
+          input.focus();
+        } else if (s.error) {
+          clearInterval(tick);
+          overlayText.textContent = "加载失败：" + s.error;
+          setStatus("加载失败", "error");
+        }
+      } catch (e) {
+        overlayText.textContent = "无法连接本地服务…";
+      }
+    }, 1200);
+  }
+
+  /* ------------------------------------------------ 提问（SSE） */
+  async function ask(question) {
+    if (busy) return;
+    const text = question != null ? question : input.value.trim();
+    if (!text) return;
+
+    busy = true;
+    sendBtn.disabled = true;
+    setStatus("正在分析", "busy");
+    input.value = "";
+    autoGrow();
+
+    addUser(text);
+    const card = addThinking();
+    const started = Date.now();
+    const timer = setInterval(() => {
+      const timeEl = card.querySelector(".thinking .time");
+      if (timeEl) timeEl.textContent = Math.round((Date.now() - started) / 1000) + "s";
+    }, 1000);
+
+    let answer = null;
+    let errorMessage = null;
+    let metrics = null;
+
+    try {
+      const res = await fetch("/api/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: text }),
+      });
+      if (!res.ok || !res.body) throw new Error("本地服务返回异常（" + res.status + "）");
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+      let buffer = "";
+
+      while (true) {
+        const chunk = await reader.read();
+        if (chunk.done) break;
+        buffer += decoder.decode(chunk.value, { stream: true });
+        const frames = buffer.split("\n\n");
+        buffer = frames.pop();
+        frames.forEach((frame) => {
+          const line = frame.split("\n").find((l) => l.startsWith("data:"));
+          if (!line) return;
+          let evt;
+          try { evt = JSON.parse(line.slice(5).trim()); } catch (e) { return; }
+          if (evt.type === "answer") { answer = evt.content; metrics = evt.metrics; }
+          else if (evt.type === "error") { errorMessage = evt.message; }
+        });
+      }
+    } catch (e) {
+      errorMessage = (e && e.message) || String(e);
+    } finally {
+      clearInterval(timer);
+      card.remove();
+      if (answer != null) {
+        const meta = metrics
+          ? metrics.rounds + " 轮 · " + (metrics.total_time != null ? metrics.total_time.toFixed(1) : "—") + "s"
+          : "";
+        addAnswer(answer, meta);
+        setStatus("就绪");
+      } else {
+        addError(errorMessage || "没有得到回答，请稍后重试。");
+        setStatus("出错", "error");
+      }
+      busy = false;
+      sendBtn.disabled = false;
+      input.focus();
+    }
+  }
+
+  /* ------------------------------------------------ 交互绑定 */
+  function autoGrow() {
+    input.style.height = "auto";
+    input.style.height = Math.min(170, input.scrollHeight) + "px";
+  }
+
+  input.addEventListener("input", autoGrow);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      ask();
+    }
+  });
+  sendBtn.addEventListener("click", () => ask());
+
+  $("modelSelect").addEventListener("change", async (e) => {
+    const model = e.target.value;
+    try {
+      await fetch("/api/model", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model }),
+      });
+      setStatus("模型已切换：" + model);
+      setTimeout(() => setStatus("就绪"), 1800);
+    } catch (err) {
+      setStatus("切换失败", "error");
+    }
+  });
+
+  $("loaderSelect").addEventListener("change", () => switchData());
+  $("fileSelect").addEventListener("change", () => switchData());
+
+  async function switchData() {
+    const file = $("fileSelect").value;
+    const loader = $("loaderSelect").value;
+    if (!file) return;
+    showOverlay("正在加载数据，首次启动约需 1–2 分钟…");
+    setStatus("正在加载", "busy");
+    try {
+      const res = await fetch("/api/switch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ file, loader }),
+      });
+      const s = await res.json();
+      if (!s.ok) throw new Error(s.error || "切换失败");
+      applyState(s.state);
+      clearChat();
+      hideOverlay();
+      setStatus("就绪");
+    } catch (err) {
+      hideOverlay();
+      addError("切换数据失败：" + err.message);
+      setStatus("切换失败", "error");
+    }
+  }
+
+  $("newChat").addEventListener("click", async () => {
+    try {
+      await fetch("/api/newchat", { method: "POST" });
+    } catch (e) { /* 忽略 */ }
+    clearChat();
+    setStatus("就绪");
+    input.focus();
+  });
+
+  $("quit").addEventListener("click", async () => {
+    try { await fetch("/api/shutdown", { method: "POST" }); } catch (e) { /* 忽略 */ }
+    overlayText.textContent = "已退出，可以关闭这个窗口了";
+    overlay.classList.remove("hidden");
+    setTimeout(() => window.close(), 300);
+  });
+
+  window.addEventListener("beforeunload", () => {
+    try { navigator.sendBeacon("/api/shutdown"); } catch (e) { /* 忽略 */ }
+  });
+
+  /* ------------------------------------------------ 预览模式（?demo=1） */
+  const SAMPLE_MD = [
+    "## 结论：第 5–10 分钟未见明显异常慢波",
+    "",
+    "- **背景活动**：以低波幅混合频率为主，未见持续节律性改变。",
+    "- **慢波**：Fpz-Cz、Pz-Oz 在该时段内 delta 功率占比低于 12%，未达到慢波判据。",
+    "- **伪迹**：仅在第 6 分 40 秒附近出现一次短暂肌电样高频活动，持续不到 1 秒。",
+    "",
+    "| 指标 | Fpz-Cz | Pz-Oz |",
+    "|---|---|---|",
+    "| 平均绝对波幅 | 4.63e-05 | 1.10e-05 |",
+    "| RMS | 5.56e-05 | 1.38e-05 |",
+    "| 峰值 | 1.46e-04 | 2.60e-05 |",
+    "",
+    "> 以上为 10 秒粗筛 + 1 秒细查的合并结果，建议结合原始波形复核第 6 分 40 秒处。",
+    "",
+    "**总体判断**：该时段未见明确的癫痫样放电或显著慢波活动。",
+  ].join("\n");
+
+  function runDemo() {
+    applyState({
+      ready: true,
+      status: "预览模式",
+      error: null,
+      info: {
+        file: "test.edf（46.1 MB）",
+        fs: "100 Hz（配置 256 Hz，已按文件校正）",
+        duration: "22.08 小时（79,500 s）",
+        channels: "7 个 · Fpz-Cz、Pz-Oz、EOG horizontal、Resp oro-nasal …",
+        subject: "女（F） · 年龄未提供 · 编号 X",
+        recorded: "1989-04-24 16:13",
+        loader: "睡眠导联（Fpz-Cz / Pz-Oz）",
+        model: "qwen-plus",
+        knowledge: "3 篇文档 · 相似度阈值 0.6",
+      },
+      files: [{ path: "test.edf", name: "test.edf" }],
+      current: { path: "test.edf", loader: "sleep" },
+      loaderOptions: [
+        { value: "sleep", label: "睡眠导联（Fpz-Cz / Pz-Oz）" },
+        { value: "mdd", label: "单极 19 导（MDD）" },
+        { value: "bipolar", label: "双极 22 导（TUEV）" },
+      ],
+      model: "qwen-plus",
+      models: ["qwen-plus", "qwen3-14b", "qwen3-32b", "qwen3-235b-a22b"],
+      examples: [
+        ["这段数据的采样率、导联和记录时长是多少？", "基础信息（baseInfo）"],
+        ["第 5 到第 10 分钟有没有明显的慢波？", "分段探查（slowSeizBckg + compute_amplitude）"],
+        ["Fpz-Cz 在第 100 秒附近是眼动还是肌电伪迹？", "伪迹判别（eyeMuscle）"],
+        ["分析第 1 小时里的睡眠分期，并给出各期占比。", "睡眠分期（sleepStage）"],
+      ],
+    });
+    hideOverlay();
+    setStatus("预览模式");
+    $("hintFile").textContent = "界面预览：不加载数据，也不调用模型";
+    addUser("第 5 到第 10 分钟有没有明显的慢波？");
+    addAnswer(SAMPLE_MD, "2 轮 · 12.1s");
+    sendBtn.disabled = true;
+    input.disabled = true;
+  }
+
+  if (new URLSearchParams(location.search).has("demo")) runDemo();
+  else boot();
+})();
+</script>
+</body>
+</html>

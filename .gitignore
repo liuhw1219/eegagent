@@ -1,0 +1,55 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+.venv/
+venv/
+env/
+ENV/
+
+# IDE and OS files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log
+*.baiduyun.uploading.cfg
+
+# Secrets and local configuration
+config/secrets.json
+.env
+.env.*
+!.env.example
+
+# EEG recordings and derived datasets (may contain sensitive health data)
+*.edf
+*.EDF
+*.rec
+*.REC
+*.fif
+*.bdf
+*.set
+*.vhdr
+*.eeg
+data/
+eval/*/data/
+eval/*/raw/
+
+# Trained model weights and checkpoints
+*.pth
+*.pt
+*.ckpt
+*.safetensors
+eval/*/checkpoints/
+
+# Local Hugging Face / embedding model cache
+RAG/sentenceModel/
+**/sentenceModel/
+
+# Generated indexes and run/session artifacts
+RAG/faiss.index
+RAG/chunks.pkl
+RAG/registered_files.json
+runs/
