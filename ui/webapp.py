@@ -438,11 +438,21 @@ def _open_window(url: str) -> (Optional[subprocess.Popen], str):
             "--disable-features=Translate,MediaRouter",
         ]
         try:
-            return subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL), profile
+            proc = subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            # 浏览器可能启动失败，或者把请求转交给已有实例后立即退出。
+            # 只有短暂存活的进程才视为已成功打开应用窗口。
+            time.sleep(0.8)
+            if proc.poll() is None:
+                return proc, profile
+            shutil.rmtree(profile, ignore_errors=True)
         except OSError:
             shutil.rmtree(profile, ignore_errors=True)
             continue
-    webbrowser.open(url)
+    try:
+        if webbrowser.open_new(url):
+            return None, ""
+    except Exception:
+        pass
     return None, ""
 
 
@@ -459,7 +469,7 @@ def launch(
     demo: bool = False,
     warmup: Optional[Callable[[], None]] = None,
 ) -> int:
-    """启动本地服务并打开窗口，窗口关闭后返回。"""
+    """启动本地服务并打开窗口，服务收到退出请求或 Ctrl+C 后返回。"""
     html_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web", "index.html")
     if not os.path.exists(html_path):
         print(f"找不到界面文件：{html_path}", file=sys.stderr)
@@ -493,15 +503,15 @@ def launch(
         service.bootstrap()
 
     print(f"EEGAgent 窗口：{url}")
-    print("关闭窗口即退出；也可以在窗口里点“退出”。")
+    print("已尝试自动打开界面；如果没有弹出，请复制上面的地址到浏览器。")
+    print("点击界面里的“退出”关闭服务；也可以在此窗口按 Ctrl+C。")
 
     proc, profile = _open_window(url) if open_window else (None, "")
     try:
-        if proc is not None:
-            proc.wait()
-        else:
-            while thread.is_alive():
-                time.sleep(0.5)
+        # Chromium 启动器可能在把页面交给已有浏览器后立即退出。
+        # 服务生命周期应由 HTTP 服务控制，不能由浏览器启动器进程控制。
+        while thread.is_alive():
+            time.sleep(0.5)
     except KeyboardInterrupt:
         pass
     finally:
